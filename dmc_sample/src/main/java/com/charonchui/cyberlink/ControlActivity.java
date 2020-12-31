@@ -451,35 +451,32 @@ public class ControlActivity extends BaseActivity implements OnClickListener {
 		new Thread() {
 			@Override
 			public void run() {
-				final String mediaDuration = mController
-						.getMediaDuration(mDevice);
+				final String mediaDuration = mController.getMediaDuration(mDevice);
 				mMediaDuration = getIntLength(mediaDuration);
 
 				LogUtil.d(TAG, "Get media duration and the value is "
 						+ mMediaDuration);
-				runOnUiThread(new Runnable() {
-					public void run() {
-						if (TextUtils.isEmpty(mediaDuration)
-								|| NOT_IMPLEMENTED.equals(mediaDuration)
-								|| mMediaDuration <= 0) {
-							mHandler.postDelayed(new Runnable() {
+				runOnUiThread(() -> {
+					if (TextUtils.isEmpty(mediaDuration)
+							|| NOT_IMPLEMENTED.equals(mediaDuration)
+							|| mMediaDuration <= 0) {
+						mHandler.postDelayed(new Runnable() {
 
-								@Override
-								public void run() {
-									LogUtil.e(TAG,
-											"Get media duration failed, retry later."
-													+ "Duration:"
-													+ mediaDuration
-													+ "intLength:"
-													+ mMediaDuration);
-									getMediaDuration();
-								}
-							}, RETRY_TIME);
-							return;
-						}
-						tv_total.setText(mediaDuration);
-						sb_progress.setMax(mMediaDuration);
+							@Override
+							public void run() {
+								LogUtil.e(TAG,
+										"Get media duration failed, retry later."
+												+ "Duration:"
+												+ mediaDuration
+												+ "intLength:"
+												+ mMediaDuration);
+								getMediaDuration();
+							}
+						}, RETRY_TIME);
+						return;
 					}
+					tv_total.setText(mediaDuration);
+					sb_progress.setMax(mMediaDuration);
 				});
 			}
 		}.start();
@@ -544,6 +541,7 @@ public class ControlActivity extends BaseActivity implements OnClickListener {
 				});
 			}
 		}.start();
+		mHandler.removeCallbacksAndMessages(null);
 	}
 
 	@SuppressWarnings("unused")

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.cybergarage.upnp.ControlPoint;
+import org.cybergarage.util.Debug;
 
 import android.app.Activity;
 import android.app.Application;
@@ -23,6 +24,7 @@ public class DMCApplication extends Application {
 		}
 		activities = new ArrayList<Activity>();
 		mDmcApplication = this;
+		Debug.on();
 	}
 
 	/**

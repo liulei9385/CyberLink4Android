@@ -22,7 +22,7 @@ public class DMCApplication extends Application {
 		if (activities != null) {
 			activities = null;
 		}
-		activities = new ArrayList<Activity>();
+		activities = new ArrayList<>();
 		mDmcApplication = this;
 		Debug.on();
 	}

@@ -61,7 +61,7 @@ public class ControlActivity extends BaseActivity implements OnClickListener {
 	private static final String TAG = "ControlActivity";
 
 	@SuppressLint("HandlerLeak")
-	private Handler mHandler = new Handler() {
+	private final Handler mHandler = new Handler() {
 		public void handleMessage(Message msg) {
 			switch (msg.what) {
 			case AUTO_INCREASING:

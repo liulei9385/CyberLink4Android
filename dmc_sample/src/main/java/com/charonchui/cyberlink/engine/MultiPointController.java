@@ -43,6 +43,7 @@ public class MultiPointController implements IController {
         action.setArgumentValue("CurrentURI", path);
         action.setArgumentValue("CurrentURIMetaData", 0);
 
+        // 泰捷盒子这里有问题，播放无法回调嚄
         if (!action.postControlAction()) {
             return false;
         }

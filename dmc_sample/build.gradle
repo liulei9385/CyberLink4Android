@@ -11,8 +11,34 @@ android {
         versionCode 1
         versionName "1.0"
     }
+
+    signingConfigs {
+        developer {
+            keyAlias 'shaoman'
+            keyPassword '123456'
+            storeFile file('../.signing/developer.jks')
+            storePassword '123456'
+            v1SigningEnabled true
+            v2SigningEnabled true
+        }
+
+        production {
+            storeFile file('../.signing/production.jks')
+            storePassword '123456'
+            keyAlias = 'shaoman'
+            keyPassword '123456'
+            v1SigningEnabled true
+            v2SigningEnabled true
+        }
+    }
+
     buildTypes {
+        debug {
+            minifyEnabled false
+            signingConfig signingConfigs.production
+        }
         release {
+            signingConfig signingConfigs.production
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

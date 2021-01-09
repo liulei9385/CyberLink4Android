@@ -387,8 +387,11 @@ class ControlActivity : BaseActivity(R.layout.activity_control), View.OnClickLis
             if (currentPosition <= 0 || currentPosition > mMediaDuration) {
                 return@runInThread
             }
-            binding.sbProgress.progress = getIntLength(position)
+
             runOnUiThread(Runnable {
+
+                binding.sbProgress.progress = getIntLength(position)
+
                 if (currentPosition >= mMediaDuration - 3
                         && mMediaDuration > 0) {
                     if (mStartAutoPlayed) {
@@ -399,6 +402,8 @@ class ControlActivity : BaseActivity(R.layout.activity_control), View.OnClickLis
                         stopAutoPlaying()
                         startAutoPlaying(((mMediaDuration - currentPosition) * 1000).toLong())
                     }
+                } else if (mMediaDuration <= 0 || mMediaDuration < currentPosition) {
+                    getMediaDuration()
                 }
             })
         }

@@ -229,23 +229,10 @@ public class MultiPointController implements IController {
         localAction.setArgumentValue("InstanceID", "0");
         boolean isSuccess = localAction.postControlAction();
         if (isSuccess) {
-            return localAction.getArgumentValue("TrackDuration");
+            return getValueFromAction(localAction, "TrackDuration");
         } else {
             return null;
         }
-
-        /*final Action localAction = localService.getAction("GetMediaInfo");
-        if (localAction == null) {
-            return null;
-        }
-
-        localAction.setArgumentValue("InstanceID", "0");
-        if (localAction.postControlAction()) {
-            return localAction.getArgumentValue("MediaDuration");
-        } else {
-            return null;
-        }*/
-
     }
 
     @Override

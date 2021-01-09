@@ -32,7 +32,7 @@ public class SplashActivity extends BaseActivity {
 	}
 
 	private void findView() {
-		iv_splash = (ImageView) findViewById(R.id.iv_splash);
+		iv_splash = findViewById(R.id.iv_splash);
 	}
 
 	private void setUp() {

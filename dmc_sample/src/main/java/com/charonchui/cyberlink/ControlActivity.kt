@@ -1,277 +1,250 @@
-package com.charonchui.cyberlink;
+package com.charonchui.cyberlink
 
-import java.util.ArrayList;
-import java.util.List;
+import android.annotation.SuppressLint
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.Message
+import android.text.TextUtils
+import android.view.View
+import android.view.ViewGroup
+import android.view.Window
+import android.widget.*
+import android.widget.SeekBar.OnSeekBarChangeListener
+import androidx.databinding.DataBindingUtil
+import com.charonchui.cyberlink.databinding.ActivityControlBinding
+import com.charonchui.cyberlink.engine.DLNAContainer
+import com.charonchui.cyberlink.engine.MultiPointController
+import com.charonchui.cyberlink.inter.IController
+import com.charonchui.cyberlink.util.LogUtil
+import com.google.gson.reflect.TypeToken
+import com.shaoman.customer.helper.JsonEntityGetter
+import com.shaoman.customer.model.entity.res.HttpResult
+import com.shaoman.customer.model.entity.res.PageInfoResult
+import com.shaoman.customer.model.entity.res.VideoEntity
+import com.shaoman.customer.util.ThreadUtils
+import org.cybergarage.upnp.Device
+import java.util.*
 
-import org.cybergarage.upnp.Device;
+class ControlActivity : BaseActivity(R.layout.activity_control), View.OnClickListener {
 
-import android.annotation.SuppressLint;
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.Message;
-import android.text.TextUtils;
-import android.view.View;
-import android.view.View.OnClickListener;
-import android.widget.FrameLayout;
-import android.widget.ImageView;
-import android.widget.SeekBar;
-import android.widget.SeekBar.OnSeekBarChangeListener;
-import android.widget.TextView;
-import android.widget.Toast;
+    private var mController: IController? = null
 
-import com.charonchui.cyberlink.engine.DLNAContainer;
-import com.charonchui.cyberlink.engine.MultiPointController;
-import com.charonchui.cyberlink.inter.IController;
-import com.charonchui.cyberlink.util.LogUtil;
-
-public class ControlActivity extends BaseActivity implements OnClickListener {
-
-    private IController mController;
-    private TextView tv_title;
-    private SeekBar sb_progress;
-    private TextView tv_current;
-    private TextView tv_total;
-    private ImageView iv_pre;
-    private ImageView iv_next;
-    private ImageView iv_play;
-    private ImageView iv_pause;
-    private ImageView iv_back_fast;
-    private ImageView iv_go_fast;
-    private SeekBar sb_voice;
-    private ImageView iv_mute;
-    private ImageView iv_volume;
-    private FrameLayout fl_play;
-    private FrameLayout fl_volume;
-
-    private Device mDevice;
-
-    private List<String> urls = new ArrayList<String>();
-    private int index;
-    private static final String ZEROTIME = "00:00:00";
-    private static final String MUTE = "1";
-    private static final String UNMUTE = "0";
-    private int mMediaDuration;
-    private static final int RETRY_TIME = 1000;
-    private static final String NOT_IMPLEMENTED = "NOT_IMPLEMENTED";
-    private boolean mPaused;
-    private boolean mPlaying;
-    private static final int AUTO_INCREASING = 8001;
-    private static final int AUTO_PLAYING = 8002;
-    private boolean mStartAutoPlayed;
-
-	private static final String TAG = "ControlActivity";
+    private var mDevice: Device? = null
+    private val urls: MutableList<String> = ArrayList()
+    private var index = 0
+    private var mMediaDuration = 0
+    private var mPaused = false
+    private var mPlaying = false
+    private var mStartAutoPlayed = false
 
     @SuppressLint("HandlerLeak")
-    private Handler mHandler = new Handler() {
-        public void handleMessage(Message msg) {
-            switch (msg.what) {
-                case AUTO_INCREASING:
-                    stopAutoIncreasing();
-                    getPositionInfo();
-                    startAutoIncreasing();
-                    break;
+    private val mHandler: Handler = object : Handler(Looper.getMainLooper()) {
+        override fun handleMessage(msg: Message) {
+            when (msg.what) {
+                AUTO_INCREASING -> {
+                    stopAutoIncreasing()
+                    getPositionInfo()
+                    startAutoIncreasing()
+                }
+                AUTO_PLAYING -> playNext()
+                else -> {
+                }
+            }
+        }
+    }
 
-			case AUTO_PLAYING:
-				playNext();
-				break;
+    private fun getMaxVolumn() {
+        runInThread {
+            val maxVolumnValue = mController?.getMaxVolumeValue(mDevice) ?: 0
+            ThreadUtils.runMain {
+                if (maxVolumnValue <= 0) {
+                    LogUtil.d(TAG, "get max volumn value failed..")
+                    binding.sbVoice.max = 100
+                } else {
+                    LogUtil.d(TAG, "get max volumn value success, the value is "
+                            + maxVolumnValue)
+                    binding.sbVoice.max = maxVolumnValue
+                }
+            }
+        }
+    }
 
-                default:
-                    break;
+    // Do your things here;
+    @get:Synchronized
+    private val transportState: Unit
+        get() {
+            runInThread {
+                val transportState = mController!!.getTransportState(mDevice)
+                // Do your things here;
+                LogUtil.d(TAG, "Get transportState :$transportState")
             }
         }
 
-        ;
-    };
+    /**
+     * Get the current play path of the video.
+     *
+     * @return The video path to play.
+     */
+    private val currentPlayPath: String
+        get() = urls[index]
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_control);
-        findView();
-        initView();
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        findView()
+        initView()
+        loadHttpData()
     }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        updateVoice();
-        getMute();
+    private fun loadHttpData() {
+        val baseUrl = "http://114.116.247.15:8399"
+        val url = "$baseUrl/video/lift"
+        val inType = TypeToken.getParameterized(PageInfoResult::class.java, VideoEntity::class.java).type
+        val typeToken = TypeToken.getParameterized(HttpResult::class.java, inType)
+        val param = hashMapOf<String, Any>(Pair("page", 1), Pair("pageSize", 10000))
+        JsonEntityGetter.postJsonEntity<PageInfoResult<VideoEntity>>(url,
+                param, typeToken) {
+            if (it.status == 0) {
+                try {
+                    val list = it.data.list
+                    urls.clear()
+                    for (i in list) {
+                        if (!i.getActualUrl().contains("//var")) {
+                            LogUtil.e("url=", " i . getActualUrl () = ${i.getActualUrl()}")
+                            urls.add(i.getActualUrl())
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        stop();
+    override fun onStart() {
+        super.onStart()
+        updateVoice()
+        getMute()
     }
 
-    private void findView() {
-        tv_title = (TextView) findViewById(R.id.tv_title);
-        sb_progress = (SeekBar) findViewById(R.id.sb_progress);
-        tv_current = (TextView) findViewById(R.id.tv_current);
-        tv_total = (TextView) findViewById(R.id.tv_total);
-        iv_pre = (ImageView) findViewById(R.id.iv_pre);
-        iv_next = (ImageView) findViewById(R.id.iv_next);
-        iv_play = (ImageView) findViewById(R.id.iv_play);
-        iv_pause = (ImageView) findViewById(R.id.iv_pause);
-        iv_back_fast = (ImageView) findViewById(R.id.iv_back_fast);
-        iv_go_fast = (ImageView) findViewById(R.id.iv_go_fast);
-        sb_voice = (SeekBar) findViewById(R.id.sb_voice);
-        iv_mute = (ImageView) findViewById(R.id.iv_mute);
-        iv_volume = (ImageView) findViewById(R.id.iv_volume);
-        fl_play = (FrameLayout) findViewById(R.id.fl_play);
-        fl_volume = (FrameLayout) findViewById(R.id.fl_volume);
+    override fun onDestroy() {
+        super.onDestroy()
+        stop()
     }
 
-    private void initView() {
-        setController(new MultiPointController());
-        mDevice = DLNAContainer.getInstance().getSelectedDevice();
+    private lateinit var binding: ActivityControlBinding
 
-        urls.add("https://shaoman.obs.cn-north-4.myhuaweicloud.com/uploadVideo/video_android_upload_03d3c47daff917c226d65cf726637436_1280x720.mp4");// 我们结婚吧
-        urls.add("https://shaoman.obs.cn-north-4.myhuaweicloud.com/uploadVideo/video_android_upload_21dbdb7a62836ff6f4ffee9073f92481_888x1920.MP4");// 伊能静
+    private fun findView() {
+        //ActivityControlBinding
+        val content = window.decorView.findViewById<ViewGroup>(Window.ID_ANDROID_CONTENT)
+        val rootView = content.getChildAt(0)
+        binding = DataBindingUtil.bind(rootView)!!
+    }
 
+    private fun initView() {
+        setController(MultiPointController())
+        mDevice = DLNAContainer.getInstance().selectedDevice
+        urls.add("https://shaoman.obs.cn-north-4.myhuaweicloud.com/uploadVideo/video_android_upload_ece3f47a385674bc5aa22cbb3c882f12_1920x1080.mp4")
         if (mController == null || mDevice == null) {
             // usually can't reach here.
-            Toast.makeText(getApplicationContext(), "Invalidate operation",
-                    Toast.LENGTH_SHORT).show();
-            LogUtil.d(TAG, "Controller or Device is null, finish this activity");
-            finish();
-            return;
+            Toast.makeText(applicationContext, "Invalidate operation",
+                    Toast.LENGTH_SHORT).show()
+            LogUtil.d(TAG, "Controller or Device is null, finish this activity")
+            finish()
+            return
         }
 
         // init the state
-        getMaxVolumn();
-
-        sb_progress.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-                startAutoIncreasing();
-                int progress = seekBar.getProgress();
-                seek(secToTime(progress));
+        getMaxVolumn()
+        binding.sbProgress.setOnSeekBarChangeListener(object : OnSeekBarChangeListener {
+            override fun onStopTrackingTouch(seekBar: SeekBar) {
+                startAutoIncreasing()
+                val progress = seekBar.progress
+                seek(secToTime(progress))
             }
 
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-                stopAutoIncreasing();
+            override fun onStartTrackingTouch(seekBar: SeekBar) {
+                stopAutoIncreasing()
             }
 
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress,
-                                          boolean fromUser) {
-                tv_current.setText(secToTime(progress));
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int,
+                                           fromUser: Boolean) {
+                binding.tvCurrent.text = secToTime(progress)
                 if (fromUser) {
-                    stopAutoIncreasing();
+                    stopAutoIncreasing()
                 }
             }
-        });
-
-        sb_voice.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-                setVoice(seekBar.getProgress());
+        })
+        binding.sbVoice.setOnSeekBarChangeListener(object : OnSeekBarChangeListener {
+            override fun onStopTrackingTouch(seekBar: SeekBar) {
+                setVoice(seekBar.progress)
             }
 
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
-
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress,
-                                          boolean fromUser) {
+            override fun onStartTrackingTouch(seekBar: SeekBar) {}
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int,
+                                           fromUser: Boolean) {
                 if (progress == 0) {
-                    iv_mute.setVisibility(View.VISIBLE);
-                    iv_volume.setVisibility(View.GONE);
+                    binding.ivMute.visibility = View.VISIBLE
+                    binding.ivVolume.visibility = View.GONE
                 } else {
-                    iv_mute.setVisibility(View.GONE);
-                    iv_volume.setVisibility(View.VISIBLE);
+                    binding.ivMute.visibility = View.GONE
+                    binding.ivVolume.visibility = View.VISIBLE
                 }
             }
-        });
-
-        iv_pre.setOnClickListener(this);
-        iv_next.setOnClickListener(this);
-        iv_go_fast.setOnClickListener(this);
-        iv_back_fast.setOnClickListener(this);
-        fl_play.setOnClickListener(this);
-        fl_volume.setOnClickListener(this);
-
-        play(getCurrentPlayPath());
-
+        })
+        binding.ivPre.setOnClickListener(this)
+        binding.ivNext.setOnClickListener(this)
+        binding.ivGoFast.setOnClickListener(this)
+        binding.ivBackFast.setOnClickListener(this)
+        binding.flPlay.setOnClickListener(this)
+        binding.flVolume.setOnClickListener(this)
+        play(currentPlayPath)
     }
 
-    private void setController(IController controller) {
-        this.mController = controller;
+    private fun setController(controller: IController) {
+        mController = controller
     }
 
     /**
-     * Get the max volume value and set it the sb_voice.
+     * Get current voice value and set it the binding.sbVoice.
      */
-    private synchronized void getMaxVolumn() {
-        new Thread() {
-            public void run() {
-                final int maxVolumnValue = mController
-                        .getMaxVolumeValue(mDevice);
-
-                if (maxVolumnValue <= 0) {
-                    LogUtil.d(TAG, "get max volumn value failed..");
-                    sb_voice.setMax(100);
-                } else {
-                    LogUtil.d(TAG,
-                            "get max volumn value success, the value is "
-                                    + maxVolumnValue);
-                    sb_voice.setMax(maxVolumnValue);
-                }
+    private fun updateVoice() {
+        runInThread {
+            var currentVoice = mController!!.getVoice(mDevice)
+            if (currentVoice == -1) {
+                currentVoice = 0
+                LogUtil.d(TAG, "get current voice failed")
+            } else {
+                LogUtil.d(TAG, "get current voice success")
+                binding.sbVoice.progress = currentVoice
             }
-
-            ;
-        }.start();
+        }
     }
 
-    /**
-     * Get current voice value and set it the sb_voice.
-     */
-    private void updateVoice() {
-        new Thread() {
-            @Override
-            public void run() {
-                int currentVoice = mController.getVoice(mDevice);
-                if (currentVoice == -1) {
-                    currentVoice = 0;
-                    LogUtil.d(TAG, "get current voice failed");
-                } else {
-                    LogUtil.d(TAG, "get current voice success");
-                    sb_voice.setProgress(currentVoice);
-                }
-            }
-        }.start();
+    private fun runInThread(function: Function0<Unit>) {
+        ThreadUtils.runOnBackground {
+            function.invoke()
+        }
     }
 
     /**
      * Get if is muted and set the mute image.
      */
-    private void getMute() {
-        new Thread() {
-            @Override
-            public void run() {
-                final String mute = mController.getMute(mDevice);
-                runOnUiThread(new Runnable() {
-
-                    @Override
-                    public void run() {
-                        if (mute == null) {
-                            LogUtil.d(TAG, "get mute failed...");
-                            if (sb_voice.getProgress() == 0) {
-                                initMuteImg(MUTE);
-                            }
-                        } else {
-                            LogUtil.d(TAG, "get mute success");
-                            initMuteImg(mute);
-                        }
-
+    fun getMute() {
+        runInThread {
+            val mute = mController!!.getMute(mDevice)
+            ThreadUtils.runMain {
+                if (mute == null) {
+                    LogUtil.d(TAG, "get mute failed...")
+                    if (binding.sbVoice.progress == 0) {
+                        initMuteImg(MUTE)
                     }
-                });
+                } else {
+                    LogUtil.d(TAG, "get mute success")
+                    initMuteImg(mute)
+                }
             }
-        }.start();
+        }
     }
 
     /**
@@ -279,112 +252,100 @@ public class ControlActivity extends BaseActivity implements OnClickListener {
      *
      * @param path The video path.
      */
-    private synchronized void play(final String path) {
+    @Synchronized
+    private fun play(path: String) {
         // Initial the state.
-        mPaused = false;
-        showPlay(true);
-        setCurrentTime(ZEROTIME);
-        setTotalTime(ZEROTIME);
-        setTitle(path);
-        stopAutoIncreasing();
-        stopAutoPlaying();
+        mPaused = false
+        showPlay(true)
+        setCurrentTime(ZEROTIME)
+        setTotalTime(ZEROTIME)
+        setTitle(path)
+        stopAutoIncreasing()
+        stopAutoPlaying()
 
-        new Thread() {
-            public void run() {
-                final boolean isSuccess = mController.play(mDevice, path);
+        runInThread {
+            val isSuccess = mController!!.play(mDevice, path)
+            if (isSuccess) {
+                LogUtil.d(TAG, "play success")
+            } else {
+                LogUtil.d(TAG, "play failed..")
+            }
+            ThreadUtils.runMain {
+                LogUtil.d(TAG,
+                        "play success and start to get media duration")
                 if (isSuccess) {
-                    LogUtil.d(TAG, "play success");
-                } else {
-                    LogUtil.d(TAG, "play failed..");
+                    mPlaying = true
+                    startAutoIncreasing()
                 }
-
-                runOnUiThread(new Runnable() {
-                    public void run() {
-                        LogUtil.d(TAG,
-                                "play success and start to get media duration");
-                        if (isSuccess) {
-                            mPlaying = true;
-                            startAutoIncreasing();
-                        }
-                        showPlay(!isSuccess);
-                        // Get the media duration and set it to the total time.
-                        getMediaDuration();
-                    }
-                });
-
+                showPlay(!isSuccess)
+                // Get the media duration and set it to the total time.
+                getMediaDuration()
             }
-
-            ;
-        }.start();
-    }
-
-    private synchronized void pause() {
-        stopAutoIncreasing();
-        stopAutoPlaying();
-        showPlay(true);
-
-        new Thread() {
-            public void run() {
-                final boolean isSuccess = mController.pause(mDevice);
-
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        showPlay(isSuccess);
-                        if (isSuccess) {
-                            mPaused = true;
-                            mPlaying = false;
-                            mHandler.removeMessages(AUTO_PLAYING);
-                        } else {
-                            startAutoIncreasing();
-                        }
-                    }
-                });
-            }
-
-            ;
-        }.start();
-    }
-
-    private synchronized void playNext() {
-        index++;
-        if (index > urls.size() - 1) {
-            index = 0;
         }
-        play(getCurrentPlayPath());
     }
 
-    private synchronized void playPre() {
-        index--;
+    @Synchronized
+    private fun pause() {
+        stopAutoIncreasing()
+        stopAutoPlaying()
+        showPlay(true)
+        object : Thread() {
+            override fun run() {
+                val isSuccess = mController!!.pause(mDevice)
+                runOnUiThread {
+                    showPlay(isSuccess)
+                    if (isSuccess) {
+                        mPaused = true
+                        mPlaying = false
+                        mHandler.removeMessages(AUTO_PLAYING)
+                    } else {
+                        startAutoIncreasing()
+                    }
+                }
+            }
+        }.start()
+    }
+
+    @Synchronized
+    private fun playNext() {
+        index++
+        if (index > urls.size - 1) {
+            index = 0
+        }
+        LogUtil.e("controller", "playNext $currentPlayPath")
+        play(currentPlayPath)
+    }
+
+    @Synchronized
+    private fun playPre() {
+        index--
         if (index < 0) {
-            index = urls.size() - 1;
+            index = urls.size - 1
         }
-        play(getCurrentPlayPath());
+        play(currentPlayPath)
     }
 
-    private synchronized void goon(final String pausePosition) {
-        new Thread() {
-            @Override
-            public void run() {
-                final boolean isSuccess = mController.goon(mDevice,
-                        pausePosition);
+    @Synchronized
+    private fun goon(pausePosition: String) {
+        object : Thread() {
+            override fun run() {
+                val isSuccess = mController!!.goon(mDevice,
+                        pausePosition)
                 if (isSuccess) {
-                    mPlaying = true;
-                    LogUtil.d(TAG, "Go on to play success");
+                    mPlaying = true
+                    LogUtil.d(TAG, "Go on to play success")
                 } else {
-                    mPlaying = false;
-                    LogUtil.d(TAG, "Go on to play failed.");
+                    mPlaying = false
+                    LogUtil.d(TAG, "Go on to play failed.")
                 }
-                runOnUiThread(new Runnable() {
-                    public void run() {
-                        showPlay(!isSuccess);
-                        if (isSuccess) {
-                            startAutoIncreasing();
-                        }
+                runOnUiThread {
+                    showPlay(!isSuccess)
+                    if (isSuccess) {
+                        startAutoIncreasing()
                     }
-                });
+                }
             }
-        }.start();
+        }.start()
     }
 
     /**
@@ -392,178 +353,126 @@ public class ControlActivity extends BaseActivity implements OnClickListener {
      *
      * @param targetPosition target position like "00:00:00"
      */
-    private synchronized void seek(final String targetPosition) {
-        new Thread() {
-            @Override
-            public void run() {
-                boolean isSuccess = mController.seek(mDevice, targetPosition);
+    @Synchronized
+    private fun seek(targetPosition: String) {
+        object : Thread() {
+            override fun run() {
+                val isSuccess = mController!!.seek(mDevice, targetPosition)
                 if (isSuccess) {
-                    LogUtil.d(TAG, "seek success");
-                    sb_progress.setProgress(getIntLength(targetPosition));
+                    LogUtil.d(TAG, "seek success")
+                    binding.sbProgress.progress = getIntLength(targetPosition)
                 } else {
-                    LogUtil.d(TAG, "seek failed..");
+                    LogUtil.d(TAG, "seek failed..")
                 }
-
-                runOnUiThread(new Runnable() {
-                    public void run() {
-                        if (mPlaying) {
-                            startAutoIncreasing();
-                        } else {
-                            stopAutoIncreasing();
-                        }
-                    }
-                });
-            }
-        }.start();
-    }
-
-    /**
-     * Get the current playing position.
-     */
-    private synchronized void getPositionInfo() {
-        new Thread() {
-            @Override
-            public void run() {
-                String position = mController.getPositionInfo(mDevice);
-                LogUtil.d(TAG, "Get position info and the value is " + position);
-                if (TextUtils.isEmpty(position)
-                        || NOT_IMPLEMENTED.equals(position)) {
-                    return;
-                }
-                final int currentPosition = getIntLength(position);
-                if (currentPosition <= 0 || currentPosition > mMediaDuration) {
-                    return;
-                }
-                sb_progress.setProgress(getIntLength(position));
-
-                runOnUiThread(new Runnable() {
-                    public void run() {
-                        if (currentPosition >= mMediaDuration - 3
-                                && mMediaDuration > 0) {
-                            if (mStartAutoPlayed) {
-                                return;
-                            } else {
-                                mStartAutoPlayed = true;
-                                LogUtil.d(TAG, "start auto play next video");
-                                stopAutoPlaying();
-                                startAutoPlaying((mMediaDuration - currentPosition) * 1000);
-                            }
-                        }
-                    }
-                });
-            }
-        }.start();
-    }
-
-    private synchronized void getMediaDuration() {
-        new Thread() {
-            @Override
-            public void run() {
-                final String mediaDuration = mController
-                        .getMediaDuration(mDevice);
-                mMediaDuration = getIntLength(mediaDuration);
-
-                LogUtil.d(TAG, "Get media duration and the value is "
-                        + mMediaDuration);
-                runOnUiThread(new Runnable() {
-                    public void run() {
-                        if (TextUtils.isEmpty(mediaDuration)
-                                || NOT_IMPLEMENTED.equals(mediaDuration)
-                                || mMediaDuration <= 0) {
-                            mHandler.postDelayed(new Runnable() {
-
-                                @Override
-                                public void run() {
-                                    LogUtil.e(TAG,
-                                            "Get media duration failed, retry later."
-                                                    + "Duration:"
-                                                    + mediaDuration
-                                                    + "intLength:"
-                                                    + mMediaDuration);
-                                    getMediaDuration();
-                                }
-                            }, RETRY_TIME);
-                            return;
-                        }
-                        tv_total.setText(mediaDuration);
-                        sb_progress.setMax(mMediaDuration);
-                    }
-                });
-            }
-        }.start();
-    }
-
-    private synchronized void setMute(final String targetValue) {
-        new Thread() {
-            @Override
-            public void run() {
-                boolean isSuccess = mController.setMute(mDevice, targetValue);
-                if (isSuccess) {
-                    runOnUiThread(new Runnable() {
-                        public void run() {
-                            initMuteImg(targetValue);
-                            getVoice();
-                        }
-                    });
-                }
-            }
-        }.start();
-    }
-
-    private synchronized void setVoice(final int voice) {
-        new Thread() {
-            @Override
-            public void run() {
-                boolean isSuccess = mController.setVoice(mDevice, voice);
-                if (isSuccess) {
-                    sb_voice.setProgress(voice);
-                    if (voice == 0) {
-                        initMuteImg(MUTE);
+                runOnUiThread {
+                    if (mPlaying) {
+                        startAutoIncreasing()
+                    } else {
+                        stopAutoIncreasing()
                     }
                 }
             }
-        }.start();
+        }.start()
     }
 
-    private synchronized void getVoice() {
-        new Thread() {
-            @Override
-            public void run() {
-                int voice = mController.getVoice(mDevice);
-                sb_voice.setProgress(voice);
+    private fun getPositionInfo() {
+        runInThread {
+            val position = mController!!.getPositionInfo(mDevice)
+            LogUtil.d(TAG, "Get position info and the value is $position")
+            if (TextUtils.isEmpty(position)
+                    || NOT_IMPLEMENTED == position) {
+                return@runInThread
+            }
+            val currentPosition = getIntLength(position)
+            if (currentPosition <= 0 || currentPosition > mMediaDuration) {
+                return@runInThread
+            }
+            binding.sbProgress.progress = getIntLength(position)
+            runOnUiThread(Runnable {
+                if (currentPosition >= mMediaDuration - 3
+                        && mMediaDuration > 0) {
+                    if (mStartAutoPlayed) {
+                        return@Runnable
+                    } else {
+                        mStartAutoPlayed = true
+                        LogUtil.d(TAG, "start auto play next video")
+                        stopAutoPlaying()
+                        startAutoPlaying(((mMediaDuration - currentPosition) * 1000).toLong())
+                    }
+                }
+            })
+        }
+    }
+
+    private fun getMediaDuration() {
+        runInThread {
+            val mediaDuration = mController?.getMediaDuration(mDevice) ?: ""
+            mMediaDuration = getIntLength(mediaDuration)
+            LogUtil.d(TAG, "Get media duration and the value is $mMediaDuration")
+            ThreadUtils.runMain {
+                if (TextUtils.isEmpty(mediaDuration)
+                        || NOT_IMPLEMENTED == mediaDuration || mMediaDuration <= 0) {
+                    mHandler.postDelayed({
+                        LogUtil.e(TAG,
+                                "Get media duration failed, retry later."
+                                        + "Duration:"
+                                        + mediaDuration
+                                        + "intLength:"
+                                        + mMediaDuration)
+                        getMediaDuration()
+                    }, RETRY_TIME.toLong())
+                    return@runMain
+                }
+                binding.tvTotal.text = mediaDuration
+                binding.sbProgress.max = mMediaDuration
+            }
+        }
+    }
+
+    @Synchronized
+    private fun setMute(targetValue: String) {
+        runInThread {
+            val isSuccess = mController!!.setMute(mDevice, targetValue)
+            if (isSuccess) {
+                runOnUiThread {
+                    initMuteImg(targetValue)
+                    getVoice()
+                }
+            }
+        }
+    }
+
+    @Synchronized
+    private fun setVoice(voice: Int) {
+        runInThread {
+            val isSuccess = mController!!.setVoice(mDevice, voice)
+            if (isSuccess) {
+                binding.sbVoice.progress = voice
                 if (voice == 0) {
-                    initMuteImg(MUTE);
+                    initMuteImg(MUTE)
                 }
             }
-        }.start();
+        }
     }
 
-    private synchronized void stop() {
-        stopAutoPlaying();
-        stopAutoIncreasing();
-        new Thread() {
-            @Override
-            public void run() {
-                final boolean isSuccess = mController.stop(mDevice);
-                runOnUiThread(new Runnable() {
-                    public void run() {
-                        showPlay(isSuccess);
-                    }
-                });
+    fun getVoice() {
+        runInThread {
+            val voice = mController!!.getVoice(mDevice)
+            binding.sbVoice.progress = voice
+            if (voice == 0) {
+                initMuteImg(MUTE)
             }
-        }.start();
+        }
     }
 
-    @SuppressWarnings("unused")
-    private synchronized void getTransportState() {
-        new Thread() {
-            @Override
-            public void run() {
-                String transportState = mController.getTransportState(mDevice);
-                // Do your things here;
-                LogUtil.d(TAG, "Get transportState :" + transportState);
-            }
-        }.start();
+    @Synchronized
+    private fun stop() {
+        stopAutoPlaying()
+        stopAutoIncreasing()
+        runInThread {
+            val isSuccess = mController!!.stop(mDevice)
+            runOnUiThread { showPlay(isSuccess) }
+        }
     }
 
     /**
@@ -571,64 +480,60 @@ public class ControlActivity extends BaseActivity implements OnClickListener {
      *
      * @param isGo true表示快进，false为快退
      */
-    private synchronized void fastGoOrBack(boolean isGo) {
-        stopAutoIncreasing();
-        String position = tv_current.getText().toString();
-        int targetLength;
+    @Synchronized
+    private fun fastGoOrBack(isGo: Boolean) {
+        stopAutoIncreasing()
+        val position = binding.tvCurrent.text.toString()
+        var targetLength: Int
         if (isGo) {
-            targetLength = getIntLength(position) + 10;
+            targetLength = getIntLength(position) + 10
             if (targetLength > mMediaDuration) {
-                targetLength = mMediaDuration;
+                targetLength = mMediaDuration
             }
         } else {
-            targetLength = getIntLength(position) - 10;
+            targetLength = getIntLength(position) - 10
             if (targetLength < 0) {
-                targetLength = 0;
+                targetLength = 0
             }
         }
-        sb_progress.setProgress(targetLength);
-        seek(secToTime(targetLength));
+        binding.sbProgress.progress = targetLength
+        seek(secToTime(targetLength))
     }
 
-    private void setCurrentTime(String time) {
-        tv_current.setText(time);
+    private fun setCurrentTime(time: String) {
+        binding.tvCurrent.text = time
     }
 
-    private void setTotalTime(String time) {
-        tv_total.setText(time);
+    private fun setTotalTime(time: String) {
+        binding.tvTotal.text = time
     }
 
-    private void setTitle(String title) {
-        switch (index % urls.size()) {
-            case 0:
-                title = "我们结婚吧";
-                break;
-            case 1:
-                title = "伊能静专访";
-                break;
-            case 2:
-                title = "佟丽娅专访";
-                break;
-            default:
-                break;
+    private fun setTitle(title: String) {
+        var title: String? = title
+        when (index % urls.size) {
+            0 -> title = "我们结婚吧"
+            1 -> title = "伊能静专访"
+            2 -> title = "佟丽娅专访"
+            else -> {
+            }
         }
-        tv_title.setText(title);
+        binding.tvTitle.text = title
     }
 
-    private void startAutoIncreasing() {
-        mHandler.sendEmptyMessageDelayed(AUTO_INCREASING, 1000);
+    private fun startAutoIncreasing() {
+        mHandler.sendEmptyMessageDelayed(AUTO_INCREASING, 1000)
     }
 
-    private void stopAutoIncreasing() {
-        mHandler.removeMessages(AUTO_INCREASING);
+    private fun stopAutoIncreasing() {
+        mHandler.removeMessages(AUTO_INCREASING)
     }
 
-    private void startAutoPlaying(long interTimes) {
-        mHandler.sendEmptyMessageAtTime(AUTO_PLAYING, interTimes);
+    private fun startAutoPlaying(interTimes: Long) {
+        mHandler.sendEmptyMessageAtTime(AUTO_PLAYING, interTimes)
     }
 
-    private void stopAutoPlaying() {
-        mHandler.removeMessages(AUTO_PLAYING);
+    private fun stopAutoPlaying() {
+        mHandler.removeMessages(AUTO_PLAYING)
     }
 
     /**
@@ -636,13 +541,13 @@ public class ControlActivity extends BaseActivity implements OnClickListener {
      *
      * @param showPlay True to show the play image otherwise false.
      */
-    private void showPlay(boolean showPlay) {
+    private fun showPlay(showPlay: Boolean) {
         if (showPlay) {
-            iv_play.setVisibility(View.VISIBLE);
-            iv_pause.setVisibility(View.GONE);
+            binding.ivPlay.visibility = View.VISIBLE
+            binding.ivPause.visibility = View.GONE
         } else {
-            iv_play.setVisibility(View.GONE);
-            iv_pause.setVisibility(View.VISIBLE);
+            binding.ivPlay.visibility = View.GONE
+            binding.ivPause.visibility = View.VISIBLE
         }
     }
 
@@ -651,73 +556,15 @@ public class ControlActivity extends BaseActivity implements OnClickListener {
      *
      * @param mute 1 is mute, otherwise is 0.
      */
-    private void initMuteImg(String mute) {
-        if (MUTE.equals(mute)) {
-            iv_mute.setVisibility(View.VISIBLE);
-            iv_volume.setVisibility(View.GONE);
-            sb_voice.setProgress(0);
-        } else if (UNMUTE.equals(mute)) {
-            iv_mute.setVisibility(View.GONE);
-            iv_volume.setVisibility(View.VISIBLE);
+    private fun initMuteImg(mute: String) {
+        if (MUTE == mute) {
+            binding.ivMute.visibility = View.VISIBLE
+            binding.ivVolume.visibility = View.GONE
+            binding.sbVoice.progress = 0
+        } else if (UNMUTE == mute) {
+            binding.ivMute.visibility = View.GONE
+            binding.ivVolume.visibility = View.VISIBLE
         }
-    }
-
-    /**
-     * Get the current play path of the video.
-     *
-     * @return The video path to play.
-     */
-    private String getCurrentPlayPath() {
-        return urls.get(index);
-    }
-
-    /**
-     * Convert the time in seconds to "00:00:00" style.
-     *
-     * @param time The time in seconds.
-     * @return The formated style like "00:00:00".
-     */
-    public static String secToTime(int time) {
-        String timeStr = null;
-        int hour = 0;
-        int minute = 0;
-        int second = 0;
-        if (time <= 0)
-            return "00:00:00";
-        else {
-            minute = time / 60;
-            if (minute < 60) {
-                second = time % 60;
-                timeStr = "00:" + unitFormat(minute) + ":" + unitFormat(second);
-            } else {
-                hour = minute / 60;
-                if (hour > 99)
-                    return "99:59:59";
-                minute = minute % 60;
-                second = time - hour * 3600 - minute * 60;
-                timeStr = unitFormat(hour) + ":" + unitFormat(minute) + ":"
-                        + unitFormat(second);
-            }
-        }
-        return timeStr;
-    }
-
-    /**
-     * Make sure if the parameter is less than 10 to add "0" before it.
-     *
-     * @param i The number to be formatted.
-     * @return The formatted number like "00" or "12";
-     */
-    public static String unitFormat(int i) {
-        String retStr = null;
-        if (i >= 0 && i < 10)
-            retStr = "0" + Integer.toString(i);
-        else if (i >= 10 && i <= 60) {
-            retStr = "" + i;
-        } else {
-            retStr = "00";
-        }
-        return retStr;
     }
 
     /**
@@ -726,72 +573,118 @@ public class ControlActivity extends BaseActivity implements OnClickListener {
      * @param length 00:00:00或者00:00
      * @return The length in seconds.
      */
-    private int getIntLength(String length) {
+    private fun getIntLength(length: String): Int {
         if (TextUtils.isEmpty(length)) {
-            return 0;
+            return 0
         }
-        String[] split = length.split(":");
-        int count = 0;
+        val split = length.split(":").toTypedArray()
+        var count = 0
         try {
-            if (split.length == 3) {
-                count += (Integer.parseInt(split[0])) * 60 * 60;
-                count += Integer.parseInt(split[1]) * 60;
-                count += Integer.parseInt(split[2]);
-            } else if (split.length == 2) {
-                count += Integer.parseInt(split[0]) * 60;
-                count += Integer.parseInt(split[1]);
+            if (split.size == 3) {
+                count += split[0].toInt() * 60 * 60
+                count += split[1].toInt() * 60
+                count += split[2].toInt()
+            } else if (split.size == 2) {
+                count += split[0].toInt() * 60
+                count += split[1].toInt()
             }
-        } catch (NumberFormatException e) {
-            e.printStackTrace();
+        } catch (e: NumberFormatException) {
+            e.printStackTrace()
         }
-        return count;
+        return count
     }
 
-    @Override
-    public void onClick(View v) {
-        int id = v.getId();
-        switch (id) {
-            case R.id.fl_play:
+    override fun onClick(v: View) {
+        when (v) {
+            binding.flPlay -> {
                 if (mPlaying) {
-                    pause();
-                    return;
+                    pause()
+                    return
                 }
-
                 if (mPaused) {
-                    String pausePosition = tv_current.getText().toString().trim();
-                    goon(pausePosition);
+                    val pausePosition = binding.tvCurrent.text.toString().trim { it <= ' ' }
+                    goon(pausePosition)
                 } else {
-                    play(getCurrentPlayPath());
+                    play(currentPlayPath)
                 }
-                break;
-            case R.id.fl_volume:
-                String targetValue = MUTE;
-                if (iv_mute.getVisibility() == View.VISIBLE) {
-                    targetValue = UNMUTE;
-                    iv_mute.setVisibility(View.GONE);
-                    iv_volume.setVisibility(View.VISIBLE);
+            }
+            binding.flVolume -> {
+                var targetValue = MUTE
+                if (binding.ivMute.visibility == View.VISIBLE) {
+                    targetValue = UNMUTE
+                    binding.ivMute.visibility = View.GONE
+                    binding.ivVolume.visibility = View.VISIBLE
                 } else {
-                    iv_mute.setVisibility(View.VISIBLE);
-                    iv_volume.setVisibility(View.GONE);
-                    sb_voice.setProgress(0);
+                    binding.ivMute.visibility = View.VISIBLE
+                    binding.ivVolume.visibility = View.GONE
+                    binding.sbVoice.progress = 0
                 }
-                setMute(targetValue);
-                break;
-            case R.id.iv_pre:
-                playPre();
-                break;
-            case R.id.iv_next:
-                playNext();
-                break;
-            case R.id.iv_go_fast:
-                fastGoOrBack(true);
-                break;
-            case R.id.iv_back_fast:
-                fastGoOrBack(false);
-                break;
+                setMute(targetValue)
+            }
+            binding.ivPre -> playPre()
+            binding.ivNext -> playNext()
+            binding.ivGoFast -> fastGoOrBack(true)
+            binding.ivBackFast -> fastGoOrBack(false)
+            else -> {
+            }
+        }
+    }
 
-            default:
-                break;
+    companion object {
+
+        private const val ZEROTIME = "00:00:00"
+        private const val MUTE = "1"
+        private const val UNMUTE = "0"
+        private const val RETRY_TIME = 1000
+        private const val NOT_IMPLEMENTED = "NOT_IMPLEMENTED"
+        private const val AUTO_INCREASING = 8001
+        private const val AUTO_PLAYING = 8002
+        private const val TAG = "ControlActivity"
+
+        /**
+         * Convert the time in seconds to "00:00:00" style.
+         *
+         * @param time The time in seconds.
+         * @return The formated style like "00:00:00".
+         */
+        fun secToTime(time: Int): String {
+            val timeStr: String?
+            val hour: Int
+            var minute: Int
+            val second: Int
+            if (time <= 0) return "00:00:00" else {
+                minute = time / 60
+                if (minute < 60) {
+                    second = time % 60
+                    timeStr = "00:" + unitFormat(minute) + ":" + unitFormat(second)
+                } else {
+                    hour = minute / 60
+                    if (hour > 99) return "99:59:59"
+                    minute %= 60
+                    second = time - hour * 3600 - minute * 60
+                    timeStr = (unitFormat(hour) + ":" + unitFormat(minute) + ":"
+                            + unitFormat(second))
+                }
+            }
+            return timeStr
+        }
+
+        /**
+         * Make sure if the parameter is less than 10 to add "0" before it.
+         *
+         * @param i The number to be formatted.
+         * @return The formatted number like "00" or "12";
+         */
+        private fun unitFormat(i: Int): String {
+            return when (i) {
+                in 0..9 -> "0$i"
+                in 10..60 -> {
+                    "" + i
+                }
+                else -> {
+                    "00"
+                }
+            }
         }
     }
 }

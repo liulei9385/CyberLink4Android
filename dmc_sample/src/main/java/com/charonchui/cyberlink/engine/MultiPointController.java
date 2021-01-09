@@ -8,6 +8,9 @@ import org.cybergarage.upnp.Action;
 import org.cybergarage.upnp.Device;
 import org.cybergarage.upnp.Service;
 
+import java.text.SimpleDateFormat;
+import java.util.Locale;
+
 public class MultiPointController implements IController {
     private static final String AVTransport1 = "urn:schemas-upnp-org:service:AVTransport:1";
     private static final String SetAVTransportURI = "SetAVTransportURI";
@@ -138,6 +141,8 @@ public class MultiPointController implements IController {
         return Integer.parseInt(maxValue);
     }
 
+    private boolean wasUseRelTime = false;
+
     @Override
     public boolean seek(Device device, String targetPosition) {
         Service localService = device.getService(AVTransport1);
@@ -149,11 +154,10 @@ public class MultiPointController implements IController {
             return false;
         }
         localAction.setArgumentValue("InstanceID", "0");
-        // if (mUseRelTime) {
-        // localAction.setArgumentValue("Unit", "REL_TIME");
-        // } else {
-        localAction.setArgumentValue("Unit", "ABS_TIME");
-        // }
+        if (wasUseRelTime) {
+            localAction.setArgumentValue("Unit", "REL_TIME");
+        } else
+            localAction.setArgumentValue("Unit", "ABS_TIME");
         localAction.setArgumentValue("Target", targetPosition);
         boolean postControlAction = localAction.postControlAction();
         if (!postControlAction) {
@@ -181,11 +185,34 @@ public class MultiPointController implements IController {
         localAction.setArgumentValue("InstanceID", "0");
         boolean isSuccess = localAction.postControlAction();
         if (isSuccess) {
-            return localAction.getArgumentValue("AbsTime");
+            String value = localAction.getArgumentValue("AbsTime");
+            if (value.equals("NOT_IMPLEMENTED")) {
+                wasUseRelTime = true;
+                return getValueFromAction(localAction, "RelTime");
+            }
+            wasUseRelTime = false;
+            return value;
+
         } else {
             return null;
         }
     }
+
+    String getValueFromAction(Action localAction, String key) {
+        try {
+            String value = localAction.getArgumentValue(key);
+            System.out.println("xxxx key = " + key + " read value = " + value);
+            if (!TextUtils.isEmpty(value) && TextUtils.isDigitsOnly(value)) {
+                long parseLong = Long.parseLong(value);
+                return simpleDateFormat.format(parseLong);
+            } else return value;
+        } catch (Throwable ex) {
+            ex.printStackTrace();
+        }
+        return null;
+    }
+
+    private SimpleDateFormat simpleDateFormat = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
 
     @Override
     public String getMediaDuration(Device device) {

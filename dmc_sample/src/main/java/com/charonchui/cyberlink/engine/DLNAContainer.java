@@ -5,7 +5,7 @@ import java.util.List;
 
 import org.cybergarage.upnp.Device;
 
-import com.charon.cyberlink.util.DLNAUtil;
+import com.charonchui.cyberlink.util.DLNAUtil;
 import com.charonchui.cyberlink.util.LogUtil;
 
 public class DLNAContainer {

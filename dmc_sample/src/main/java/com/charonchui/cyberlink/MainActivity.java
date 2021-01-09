@@ -49,8 +49,8 @@ public class MainActivity extends BaseActivity {
     }
 
     private void findView() {
-        btn_main = (Button) findViewById(R.id.btn_main);
-        lv_main = (ListView) findViewById(R.id.lv_main);
+        btn_main = findViewById(R.id.btn_main);
+        lv_main = findViewById(R.id.lv_main);
     }
 
     private void initView() {
@@ -141,7 +141,7 @@ public class MainActivity extends BaseActivity {
             } else {
                 holder = (ViewHolder) convertView.getTag();
             }
-            holder.tv_name_item = (TextView) convertView
+            holder.tv_name_item = convertView
                     .findViewById(R.id.tv_name_item);
             holder.tv_name_item.setText(mDevices.get(position)
                     .getFriendlyName());

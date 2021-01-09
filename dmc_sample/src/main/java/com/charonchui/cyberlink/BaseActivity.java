@@ -6,6 +6,13 @@ import androidx.appcompat.app.AppCompatActivity;
 
 public class BaseActivity extends AppCompatActivity {
 
+	public BaseActivity() {
+	}
+
+	public BaseActivity(int contentLayoutId) {
+		super(contentLayoutId);
+	}
+
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);

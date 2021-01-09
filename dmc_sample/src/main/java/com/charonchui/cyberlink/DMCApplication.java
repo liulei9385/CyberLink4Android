@@ -24,7 +24,7 @@ public class DMCApplication extends Application {
 		}
 		activities = new ArrayList<>();
 		mDmcApplication = this;
-		Debug.on();
+		//Debug.on();
 	}
 
 	/**
@@ -36,9 +36,7 @@ public class DMCApplication extends Application {
 	 */
 	public void addActivity(Activity activity) {
 		if (activities != null) {
-			if (activities.contains(activity)) {
-				activities.remove(activity);
-			}
+            activities.remove(activity);
 			activities.add(activity);
 		}
 	}
@@ -50,7 +48,7 @@ public class DMCApplication extends Application {
 	 * @param activity
 	 */
 	public void removeActivity(Activity activity) {
-		if (activities != null && activities.contains(activity)) {
+		if (activities != null) {
 			activities.remove(activity);
 		}
 	}

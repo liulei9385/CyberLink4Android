@@ -59,7 +59,7 @@ public class ControlActivity extends BaseActivity implements OnClickListener {
     private static final int AUTO_PLAYING = 8002;
     private boolean mStartAutoPlayed;
 
-    private static final String TAG = "ControlActivity";
+	private static final String TAG = "ControlActivity";
 
     @SuppressLint("HandlerLeak")
     private Handler mHandler = new Handler() {
@@ -71,9 +71,9 @@ public class ControlActivity extends BaseActivity implements OnClickListener {
                     startAutoIncreasing();
                     break;
 
-                case AUTO_PLAYING:
-                    playNext();
-                    break;
+			case AUTO_PLAYING:
+				playNext();
+				break;
 
                 default:
                     break;

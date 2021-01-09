@@ -18,7 +18,7 @@ import com.charonchui.cyberlink.service.DLNAService;
 public class SplashActivity extends BaseActivity {
 	private ImageView iv_splash;
 
-	private Handler handler = new Handler();
+	private final Handler handler = new Handler();
 
 	private static final int sDelayTime = 2000;
 

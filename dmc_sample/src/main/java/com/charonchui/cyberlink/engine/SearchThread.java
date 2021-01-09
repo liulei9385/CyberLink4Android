@@ -37,6 +37,7 @@ public class SearchThread extends Thread {
 				DLNAContainer.getInstance().addDevice(dev);
 			}
 		};
+		this.mControlPoint.removeDeviceChangeListener(mDeviceChangeListener);
 		this.mControlPoint.addDeviceChangeListener(mDeviceChangeListener);
 	}
 

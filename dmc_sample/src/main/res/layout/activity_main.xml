@@ -2,16 +2,16 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/home_background"
-    android:orientation="vertical" >
+    android:orientation="vertical">
 
     <Button
         android:id="@+id/btn_main"
         android:layout_width="match_parent"
-        android:gravity="center"
-        android:layout_height="40dip"
+        android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
         android:layout_marginTop="10dip"
         android:background="@drawable/dlna_search_selector"
+        android:gravity="center"
         android:text="Search"
         android:textColor="@android:color/white"
         android:textSize="30dip" />
@@ -19,7 +19,6 @@
     <ListView
         android:id="@+id/lv_main"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" >
-    </ListView>
+        android:layout_height="wrap_content" />
 
 </LinearLayout>

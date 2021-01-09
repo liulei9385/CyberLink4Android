@@ -12,9 +12,9 @@ import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.IBinder;
 
-import com.charon.cyberlink.util.LogUtil;
 import com.charonchui.cyberlink.DMCApplication;
 import com.charonchui.cyberlink.engine.SearchThread;
+import com.charonchui.cyberlink.util.LogUtil;
 
 /**
  * The service to search the DLNA Device in background all the time.

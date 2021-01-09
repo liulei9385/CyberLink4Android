@@ -1,4 +1,4 @@
-package com.charon.cyberlink.util;
+package com.charonchui.cyberlink.util;
 
 import android.util.Log;
 

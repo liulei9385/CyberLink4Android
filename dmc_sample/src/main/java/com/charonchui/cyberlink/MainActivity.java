@@ -1,26 +1,24 @@
 package com.charonchui.cyberlink;
 
-import java.util.List;
-
-import org.cybergarage.upnp.Device;
-
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
-import android.widget.AdapterView;
-import android.widget.AdapterView.OnItemClickListener;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.charon.cyberlink.util.LogUtil;
 import com.charonchui.cyberlink.engine.DLNAContainer;
 import com.charonchui.cyberlink.service.DLNAService;
+import com.charonchui.cyberlink.util.LogUtil;
+
+import org.cybergarage.upnp.Device;
+
+import java.util.List;
 
 public class MainActivity extends BaseActivity {
     protected static final String TAG = "MainActivity";

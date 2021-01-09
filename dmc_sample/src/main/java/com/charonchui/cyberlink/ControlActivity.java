@@ -19,10 +19,10 @@ import android.widget.SeekBar.OnSeekBarChangeListener;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.charon.cyberlink.util.LogUtil;
 import com.charonchui.cyberlink.engine.DLNAContainer;
 import com.charonchui.cyberlink.engine.MultiPointController;
 import com.charonchui.cyberlink.inter.IController;
+import com.charonchui.cyberlink.util.LogUtil;
 
 public class ControlActivity extends BaseActivity implements OnClickListener {
 

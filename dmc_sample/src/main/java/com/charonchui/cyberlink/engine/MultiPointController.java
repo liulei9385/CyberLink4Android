@@ -1,15 +1,12 @@
 package com.charonchui.cyberlink.engine;
 
-import org.cybergarage.upnp.Action;
-import org.cybergarage.upnp.Argument;
-import org.cybergarage.upnp.ArgumentList;
-import org.cybergarage.upnp.Device;
-import org.cybergarage.upnp.Service;
-
-import android.location.Location;
 import android.text.TextUtils;
 
 import com.charonchui.cyberlink.inter.IController;
+
+import org.cybergarage.upnp.Action;
+import org.cybergarage.upnp.Device;
+import org.cybergarage.upnp.Service;
 
 public class MultiPointController implements IController {
     private static final String AVTransport1 = "urn:schemas-upnp-org:service:AVTransport:1";

@@ -6,10 +6,10 @@ import java.util.List;
 import org.cybergarage.upnp.Device;
 
 import com.charon.cyberlink.util.DLNAUtil;
-import com.charon.cyberlink.util.LogUtil;
+import com.charonchui.cyberlink.util.LogUtil;
 
 public class DLNAContainer {
-	private List<Device> mDevices;
+	private final List<Device> mDevices;
 	private Device mSelectedDevice;
 	private DeviceChangeListener mDeviceChangeListener;
 	private static final DLNAContainer mDLNAContainer = new DLNAContainer();

@@ -1,10 +1,11 @@
 package com.charonchui.cyberlink.engine;
 
+import com.charonchui.cyberlink.util.LogUtil;
+
 import org.cybergarage.upnp.ControlPoint;
 import org.cybergarage.upnp.Device;
 import org.cybergarage.upnp.device.DeviceChangeListener;
 
-import com.charon.cyberlink.util.LogUtil;
 
 /**
  * A thread to search the devices all the time.
@@ -13,7 +14,7 @@ import com.charon.cyberlink.util.LogUtil;
  */
 public class SearchThread extends Thread {
 	private boolean flag = true;
-	private ControlPoint mControlPoint;
+	private final ControlPoint mControlPoint;
 	private boolean mStartComplete;
 	private int mSearchTimes;
 	private static final int mFastInternalTime = 15000;

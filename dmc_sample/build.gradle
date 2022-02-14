@@ -1,3 +1,4 @@
+
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-parcelize'
@@ -5,32 +6,32 @@ apply plugin: 'kotlin-kapt'
 
 android {
 
-    compileSdkVersion 30
-    buildToolsVersion "30.0.3"
+    compileSdkVersion 31
+    buildToolsVersion "32.0.0"
 
     defaultConfig {
         applicationId "com.charonchui.cyberlink"
         minSdkVersion 21
-        targetSdkVersion 30
+        targetSdkVersion 31
         versionCode 1
         versionName "1.0"
     }
 
     signingConfigs {
         developer {
-            keyAlias 'shaoman'
-            keyPassword '123456'
-            storeFile file('../.signing/developer.jks')
-            storePassword '123456'
+            storeFile file('../.signing/release.jks')
+            keyAlias 'dlan_android'
+            keyPassword 'a123456'
+            storePassword 'a123456'
             v1SigningEnabled true
             v2SigningEnabled true
         }
 
         production {
-            storeFile file('../.signing/production.jks')
-            storePassword '123456'
-            keyAlias = 'shaoman'
-            keyPassword '123456'
+            storeFile file('../.signing/release.jks')
+            storePassword 'a123456'
+            keyAlias = 'dlan_android'
+            keyPassword 'a123456'
             v1SigningEnabled true
             v2SigningEnabled true
         }

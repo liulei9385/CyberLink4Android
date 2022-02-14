@@ -1,7 +1,6 @@
 package com.shaoman.customer.helper
 
 import android.util.Log
-import com.charonchui.cyberlink.util.LogUtil
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken

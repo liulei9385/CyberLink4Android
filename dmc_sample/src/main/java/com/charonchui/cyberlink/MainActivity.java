@@ -80,7 +80,7 @@ public class MainActivity extends BaseActivity {
 		});
 
         DLNAContainer.getInstance().setDeviceChangeListener(
-                device -> runOnUiThread(() -> refresh()));
+                device -> runOnUiThread(this::refresh));
     }
 
     private void refresh() {

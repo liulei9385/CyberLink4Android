@@ -37,13 +37,7 @@ public class SplashActivity extends BaseActivity {
 
 	private void setUp() {
 		playAnimation();
-		handler.postDelayed(new Runnable() {
-
-			@Override
-			public void run() {
-				startMainActivity();
-			}
-		}, sDelayTime);
+		handler.postDelayed(this::startMainActivity, sDelayTime);
 	}
 
 	private void playAnimation() {
